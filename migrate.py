@@ -2,6 +2,7 @@ import psycopg2
 import LinPy
 import click
 import re
+import os
 
 from typing import List
 
@@ -91,25 +92,29 @@ def get_column_names(psycopg_conn, table_name: str) -> List[str]:
     cur.close()
     return names
 
-
-def generate_create_table_statement(psycopg_conn, table_name: str, columns: List[str]) -> str:
-    cur = psycopg_conn.cursor()
-    with open("get_column_info.sql", "rt") as sql_file:
-        sql = sql_file.read()
-        sql = sql.replace("<<<TABLE_NAME>>>", table_name)
-        sql = sql.replace("<<<COLUMNS>>>", ",".join(list(map(lambda name: f"'{name}'", columns))))
-
-        cur.execute(sql)
-
-    create_table_statement = cur.fetchall()
-    
+def generate_create_table_statement(psycopg_conn, table_name: str, columns: List[str],
+    postgresql_database, postgresql_password, postgresql_host, postgresql_port, o_file='file.txt') -> str:
+    q = f'psql postgresql://{postgresql_database}:{postgresql_password}@{postgresql_host}:{postgresql_port} -c "\d+ {table_name};" -o {o_file}'
+    os.system(q)
+    result_columns = []
+    with open(o_file, 'rt') as f:
+        lines = f.readlines()
+        for line in lines[3:]: 
+            res_cols = line.split('|')
+            if len(res_cols) < 4:
+                continue
+            col_name = res_cols[0].strip()
+            if col_name not in columns:
+                continue
+            data_type = res_cols[1].strip()
+            is_not_null = res_cols[3].strip()
+            result_columns.append(' '.join((col_name, data_type, is_not_null)))
+            
     final_statement = f'''
-        CREATE OR REPLACE TABLE {table_name}  (
-            {', '.join([el[0] for el in create_table_statement])}
+        CREATE OR REPLACE TABLE {table_name} (
+            {', '.join(result_columns)}
         );
-    '''
-    # print(final_statement)
-    cur.close()
+    '''    
     return final_statement
 
 def linpy_execute_and_commit(linpy_conn, cmd):
@@ -171,11 +176,12 @@ def process_nulls(psycopg_conn, table_name: str, columns: List[str]):
     # print(result)
     cursor.close()
 
-def migrate_table(psycopg_conn, linpy_conn, table_name: str, columns: List[str]):
+def migrate_table(psycopg_conn, linpy_conn, table_name: str, columns: List[str],
+        postgresql_database, postgresql_password, postgresql_host, postgresql_port):
     process_nulls(psycopg_conn, table_name, columns)
 
-    create_table_statement = generate_create_table_statement(
-        psycopg_conn=psycopg_conn, table_name=table_name, columns=columns)
+    create_table_statement = generate_create_table_statement(psycopg_conn, table_name, columns, 
+        postgresql_database, postgresql_password, postgresql_host, postgresql_port)
 
     linpy_execute_and_commit(linpy_conn=linpy_conn, cmd=create_table_statement)
 
@@ -188,7 +194,7 @@ def migrate_table(psycopg_conn, linpy_conn, table_name: str, columns: List[str])
         linpy_execute_and_commit(linpy_conn=linpy_conn, cmd=sql_insert)
 
 
-def migrate(psycopg_conn, linpy_conn):
+def migrate(psycopg_conn, linpy_conn, postgresql_database, postgresql_password, postgresql_host, postgresql_port):
     tables = get_table_names(psycopg_conn=psycopg_conn)
     tables = ask_user_to_select(items_name="tables", options=tables)
 
@@ -200,7 +206,7 @@ def migrate(psycopg_conn, linpy_conn):
         columns = get_column_names(psycopg_conn=psycopg_conn, table_name=table)
         columns = ask_user_to_select(items_name="columns", options=columns)
         
-        migrate_table(psycopg_conn, linpy_conn, table, columns)
+        migrate_table(psycopg_conn, linpy_conn, table, columns, postgresql_database, postgresql_password, postgresql_host, postgresql_port)
 
         print(f"Migration for {table} table is successful.")
         print("=" * 10)
@@ -242,7 +248,7 @@ def main(
                 password=linpy_password,
             )
 
-            migrate(psycopg_conn, linpy_conn)
+            migrate(psycopg_conn, linpy_conn, postgresql_database, postgresql_password, postgresql_host, postgresql_port)
             finished = True
         except (psycopg2.errors.Error, LinPy.DatabaseError) as err:
             print("ERROR. Database error:")
