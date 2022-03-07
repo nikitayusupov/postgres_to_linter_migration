@@ -1,14 +1,14 @@
 -- СОЗДАЕМ ТЕСТОВУЮ ТАБЛИЦУ В POSTGRES ДЛЯ МИГРАЦИИ
 
-CREATE TABLE recipes (
-  recipe_id INT NOT NULL,
-  recipe_name VARCHAR(30) 
+CREATE TABLE students (
+  student_id INT NOT NULL,
+  student_name VARCHAR(60) 
 );
 
-INSERT INTO recipes 
-    (recipe_id, recipe_name) 
+INSERT INTO students 
+    (student_id, student_name) 
 VALUES 
-    (1, 'Tacos'),
-    (2, 'Tomato Soup'),
-    (3, 'Grilled Cheese'),
-    (4, NULL);
+    (0, 'Mike'),
+    (1, 'Ivan'),
+    (2, 'Dima Ivanov'),
+    (3, NULL);
