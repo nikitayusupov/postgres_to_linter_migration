@@ -18,7 +18,6 @@ def ask_yes_no(question: str) -> bool:
         elif ans in ("n", "no"):
             return False
 
-
 def ask_user_to_select(items_name: str, options: List[str]) -> List[str]:
     print(f"Choose {items_name} to be migrated.")
     print()
@@ -62,8 +61,6 @@ def ask_user_to_select(items_name: str, options: List[str]) -> List[str]:
         else:
             raise RuntimeError
 
-
-
 def get_table_names(psycopg_conn,
     postgresql_database, postgresql_password, postgresql_host, postgresql_port, o_file='file.txt') -> List[str]:
 
@@ -85,38 +82,21 @@ def get_table_names(psycopg_conn,
 
     return names
 
+def get_column_names(psycopg_conn, table_name: str,
+    postgresql_database, postgresql_password, postgresql_host, postgresql_port, o_file='file.txt') -> List[str]:
+    q = f'psql postgresql://{postgresql_database}:{postgresql_password}@{postgresql_host}:{postgresql_port} -c "\d+ {table_name};" -o {o_file}'
+    os.system(q)
+    names = []
+    with open(o_file, 'rt') as f:
+        lines = f.readlines()
+        for line in lines[3:]: 
+            res_cols = line.split('|')
+            if len(res_cols) < 4:
+                continue
+            col_name = res_cols[0].strip()
+            names.append(col_name)
 
-def get_column_names(psycopg_conn, table_name: str) -> List[str]:
-    cur = psycopg_conn.cursor()
-    with open("get_column_names.sql", "rt") as sql_file:
-        sql = sql_file.read()
-        sql = sql.replace("<<<TABLE_NAME>>>", table_name)
-
-        cur.execute(sql)
-    
-    result = cur.fetchall()
-    names = list(map(itemgetter(0), result))
-
-    cur.close()
     return names
-
-
-
-# def generate_create_table_statement(psycopg_conn, table_name: str, columns: List[str]) -> str:
-#     cur = psycopg_conn.cursor()
-#     with open("generate_create_table.sql", "rt") as sql_file:
-#         sql = sql_file.read()
-#         sql = sql.replace("<<<TABLE_NAME>>>", table_name)
-#         sql = sql.replace("<<<COLUMNS>>>", ",".join(list(map(lambda name: f"'{name}'", columns))))
-
-#         cur.execute(sql)
-
-#     create_table_statement = cur.fetchone()[0]
-
-#     cur.close()
-#     return create_table_statement
-
-
 
 def generate_create_table_statement(psycopg_conn, table_name: str, columns: List[str],
     postgresql_database, postgresql_password, postgresql_host, postgresql_port, o_file='file.txt') -> str:
@@ -230,7 +210,8 @@ def migrate(psycopg_conn, linpy_conn, postgresql_database, postgresql_password, 
         print("=" * 10)
         print(f"Starting migration for {table} table.")
 
-        columns = get_column_names(psycopg_conn=psycopg_conn, table_name=table)
+        columns = get_column_names(psycopg_conn, table,
+            postgresql_database, postgresql_password, postgresql_host, postgresql_port)
         columns = ask_user_to_select(items_name="columns", options=columns)
         
         migrate_table(psycopg_conn, linpy_conn, table, columns, postgresql_database, postgresql_password, postgresql_host, postgresql_port)
