@@ -92,21 +92,25 @@ def get_column_names(psycopg_conn, table_name: str) -> List[str]:
     return names
 
 
-
 def generate_create_table_statement(psycopg_conn, table_name: str, columns: List[str]) -> str:
     cur = psycopg_conn.cursor()
-    with open("generate_create_table.sql", "rt") as sql_file:
+    with open("get_column_info.sql", "rt") as sql_file:
         sql = sql_file.read()
         sql = sql.replace("<<<TABLE_NAME>>>", table_name)
         sql = sql.replace("<<<COLUMNS>>>", ",".join(list(map(lambda name: f"'{name}'", columns))))
 
         cur.execute(sql)
 
-    create_table_statement = cur.fetchone()[0]
-
+    create_table_statement = cur.fetchall()
+    
+    final_statement = f'''
+        CREATE OR REPLACE TABLE {table_name}  (
+            {', '.join([el[0] for el in create_table_statement])}
+        );
+    '''
+    # print(final_statement)
     cur.close()
-    return create_table_statement
-
+    return final_statement
 
 def linpy_execute_and_commit(linpy_conn, cmd):
     linpy_cursor = linpy_conn.cursor()
