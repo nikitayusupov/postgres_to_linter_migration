@@ -64,17 +64,25 @@ def ask_user_to_select(items_name: str, options: List[str]) -> List[str]:
 
 
 
-def get_table_names(psycopg_conn) -> List[str]:
-    cur = psycopg_conn.cursor()
-    with open("get_table_names.sql", "rt") as sql_file:
-        sql = sql_file.read()
+def get_table_names(psycopg_conn,
+    postgresql_database, postgresql_password, postgresql_host, postgresql_port, o_file='file.txt') -> List[str]:
 
-        cur.execute(sql)
-    
-    result = cur.fetchall()
-    names = list(map(itemgetter(0), result))
+    q = f'psql postgresql://{postgresql_database}:{postgresql_password}@{postgresql_host}:{postgresql_port} -c "\d ;" -o {o_file}'
+    os.system(q)
+    names = []
 
-    cur.close()
+    with open(o_file, 'rt') as f:
+        lines = f.readlines()
+        for line in lines[3:]: 
+            res_cols = line.split('|')
+            if len(res_cols) < 3:
+                continue
+            schema_name = res_cols[0].strip()
+            if schema_name != 'public':
+                continue
+            cur_table_name = res_cols[1].strip()
+            names.append(cur_table_name)
+
     return names
 
 
@@ -91,6 +99,24 @@ def get_column_names(psycopg_conn, table_name: str) -> List[str]:
 
     cur.close()
     return names
+
+
+
+# def generate_create_table_statement(psycopg_conn, table_name: str, columns: List[str]) -> str:
+#     cur = psycopg_conn.cursor()
+#     with open("generate_create_table.sql", "rt") as sql_file:
+#         sql = sql_file.read()
+#         sql = sql.replace("<<<TABLE_NAME>>>", table_name)
+#         sql = sql.replace("<<<COLUMNS>>>", ",".join(list(map(lambda name: f"'{name}'", columns))))
+
+#         cur.execute(sql)
+
+#     create_table_statement = cur.fetchone()[0]
+
+#     cur.close()
+#     return create_table_statement
+
+
 
 def generate_create_table_statement(psycopg_conn, table_name: str, columns: List[str],
     postgresql_database, postgresql_password, postgresql_host, postgresql_port, o_file='file.txt') -> str:
@@ -195,7 +221,8 @@ def migrate_table(psycopg_conn, linpy_conn, table_name: str, columns: List[str],
 
 
 def migrate(psycopg_conn, linpy_conn, postgresql_database, postgresql_password, postgresql_host, postgresql_port):
-    tables = get_table_names(psycopg_conn=psycopg_conn)
+    tables = get_table_names(psycopg_conn, 
+        postgresql_database, postgresql_password, postgresql_host, postgresql_port)
     tables = ask_user_to_select(items_name="tables", options=tables)
 
     for table in tables:
