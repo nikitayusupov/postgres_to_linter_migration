@@ -9,6 +9,7 @@ INSERT INTO students
     (student_id, student_name) 
 VALUES 
     (0, 'Mike'),
-    (1, 'Ivan'),
-    (2, 'Dima Ivanov'),
-    (3, NULL);
+    (2, NULL),
+    (2, 'Ivan'),
+    (3, 'Dima Ivanov'),
+    (4, NULL);
